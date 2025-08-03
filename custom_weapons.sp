@@ -14,9 +14,18 @@
 #define GAME_CSS 2
 #define GAME_CSGO 3
 
-new Engine_Version = GAME_UNDEFINED;
+// Sound channel constants (if not already defined)
+#if !defined SNDCHAN_AUTO
+#define SNDCHAN_AUTO		0
+#define SNDCHAN_WEAPON		1
+#define SNDCHAN_VOICE		2
+#define SNDCHAN_ITEM		3
+#define SNDCHAN_BODY		4
+#define SNDCHAN_STREAM		5
+#define SNDCHAN_STATIC		6
+#endif
 
-new iDroppedModel[2049];
+new Engine_Version = GAME_UNDEFINED;
 
 new Handle:hPlugin[MAXPLAYERS+1];
 new Function:weapon_switch[MAXPLAYERS+1];
@@ -31,13 +40,9 @@ enum
 	Type_Max
 }
 
+new Handle:g_hTrieSounds[MAXPLAYERS+1][2];
 new Handle:g_hTrieSequence[MAXPLAYERS+1];
-
-new bool:g_bMuzzleFlash[MAXPLAYERS+1],
-	Float:g_fMuzzleScale[MAXPLAYERS+1],
-Float:g_fMuzzlePos[MAXPLAYERS+1][3];
-
-new m_hMyWeapons;
+new g_iPlayerData[MAXPLAYERS+1][5];
 
 new bool:IsCategoryFilled[7];
 
@@ -46,26 +51,26 @@ new WeaponAddons[MAXPLAYERS+1][Type_Max];
 new OldBits[MAXPLAYERS+1];
 new OldWeapon[MAXPLAYERS+1];
 new OldSequence[MAXPLAYERS+1];
-new ClientVM[MAXPLAYERS+1];
-new ClientVM2[MAXPLAYERS+1];
+new ClientVM[MAXPLAYERS+1][2];
 
 new Float:OldCycle[MAXPLAYERS+1];
 new Float:NextSeq[MAXPLAYERS+1];
 new Float:NextChange[MAXPLAYERS+1];
+
+new bool:HasSoundAt[MAXPLAYERS+1][14];
+new bool:StopSounds[MAXPLAYERS+1];
 
 new bool:g_bMenuSpawn[MAXPLAYERS+1] = {true, ...}, Handle:g_hCookieMenuSpawn;
 new bool:g_bEnabled[MAXPLAYERS+1] = {true, ...}, Handle:g_hCookieWeaponModels;
 
 new bool:SpawnCheck[MAXPLAYERS+1];
 new bool:IsCustom[MAXPLAYERS+1];
+new g_iFlagBits[MAXPLAYERS+1];
 
-new String:g_sClLang[MAXPLAYERS+1][3];
-new String:g_sServLang[3];
+new String:g_sClLang[MAXPLAYERS+1][4];
+new String:g_sServLang[4];
 
-new String:g_sDroppedModel[32] = "world_model_index";
-new iPrevIndex[MAXPLAYERS+1];
-
-
+new m_hMyWeapons;
 
 new Handle:hCvar_Enable, bool:bCvar_Enable;
 new Handle:hCvar_SpawnMenu, bool:bCvar_SpawnMenu;
@@ -87,14 +92,25 @@ new Handle:hRegTrie;
 new g_iTable = INVALID_STRING_TABLE;
 
 new Handle:hTrie_Cookies;
+new bool:g_bCanSetCustomModel[MAXPLAYERS+1];
 new bool:g_bDev[MAXPLAYERS+1];
 new iCycle[MAXPLAYERS+1], Float:next_cycle[MAXPLAYERS+1];
+
+new CSGrenOffsets[9];
+new CSWeaponOffsets[6];
+new CSPlayerOffsets[7];
+new CSViewModelOffsets[7];
+
+new Handle:g_hTrieSounds[MAXPLAYERS+1][2];
+new g_iPlayerData[MAXPLAYERS+1][5];
+new bool:HasSoundAt[MAXPLAYERS+1][14];
+new bool:StopSounds[MAXPLAYERS+1];
 
 public Plugin:myinfo =
 {
 	name = "[CS] Custom Weapons",
 	author = "FrozDark",
-	description = "Custom weapon models - server side",
+	description = "Custom weapon models - server side with sound system and muzzle flash",
 	version = PLUGIN_VERSION,
 	url = "http://www.hlmod.ru/"
 };
@@ -225,6 +241,9 @@ public OnPluginStart()
 	HookEvent("bomb_planted", OnBombPlanted);
 	HookEvent("round_start", OnRoundStart, EventHookMode_PostNoCopy);
 	
+	AddTempEntHook("Shotgun Shot", CSS_Hook_ShotgunShot);
+	AddNormalSoundHook(NormalSoundHook);
+	
 	RegAdminCmd("cw_dev", Command_Dev, ADMFLAG_ROOT);
 	
 	g_iTable = FindStringTable("modelprecache");
@@ -284,6 +303,154 @@ public OnPluginStart()
 	LoadTranslations("custom_weapons.phrases.txt");
 	
 	AutoExecConfig(true, "custom_weapons");
+}
+
+RegisterOffsets()
+{
+	CSPlayerOffsets[0] = FindSendPropOffs("CCSPlayer", "m_hActiveWeapon");
+	CSPlayerOffsets[1] = FindSendPropOffs("CCSPlayer", "m_iAddonBits");
+	CSPlayerOffsets[2] = FindSendPropOffs("CCSPlayer", "m_iPrimaryAddon");
+	CSPlayerOffsets[3] = FindSendPropOffs("CCSPlayer", "m_iSecondaryAddon");
+	CSPlayerOffsets[4] = FindSendPropOffs("CCSPlayer", "m_iProgressBarDuration");
+	CSPlayerOffsets[5] = FindSendPropOffs("CCSPlayer", "m_flProgressBarStartTime");
+	CSPlayerOffsets[6] = FindSendPropOffs("CCSPlayer", "m_hObserverTarget");
+	CSGrenOffsets[0] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_iTeamNum");
+	CSGrenOffsets[1] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_vecMins");
+	CSGrenOffsets[2] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_vecMaxs");
+	CSGrenOffsets[3] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_hOwnerEntity");
+	CSGrenOffsets[4] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_hThrower");
+	CSGrenOffsets[5] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_vecOrigin");
+	CSGrenOffsets[6] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_vecVelocity");
+	CSGrenOffsets[7] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_angRotation");
+	CSGrenOffsets[8] = FindSendPropOffs("CBaseCSGrenadeProjectile", "m_flElasticity");
+	CSWeaponOffsets[0] = FindSendPropOffs("CBaseCombatWeapon", "m_iClip1");
+	CSWeaponOffsets[1] = FindSendPropOffs("CBaseCombatWeapon", "m_iClip2");
+	CSWeaponOffsets[2] = FindSendPropInfo("CBaseCombatWeapon", "m_iPrimaryAmmoCount");
+	CSWeaponOffsets[3] = FindSendPropOffs("CBaseCombatWeapon", "m_PredictableID");
+	CSWeaponOffsets[4] = FindSendPropOffs("CBaseCombatWeapon", "m_flNextPrimaryAttack");
+	CSWeaponOffsets[5] = FindSendPropOffs("CBaseCombatWeapon", "m_flNextSecondaryAttack");
+	CSViewModelOffsets[0] = FindSendPropOffs("CPredictedViewModel", "m_nSequence");
+	CSViewModelOffsets[1] = FindSendPropOffs("CPredictedViewModel", "m_fEffects");
+	CSViewModelOffsets[2] = FindSendPropOffs("CPredictedViewModel", "m_flPlaybackRate");
+	CSViewModelOffsets[3] = FindSendPropOffs("CPredictedViewModel", "m_nModelIndex");
+	CSViewModelOffsets[4] = FindSendPropOffs("CPredictedViewModel", "m_nViewModelIndex");
+	CSViewModelOffsets[5] = FindSendPropOffs("CPredictedViewModel", "m_hOwner");
+	CSViewModelOffsets[6] = FindSendPropOffs("CPredictedViewModel", "m_hWeapon");
+}
+
+CSPlayer_GetAddonBits(client)
+{
+	return GetEntData(client, CSPlayerOffsets[1]);
+}
+
+CSPlayer_SetAddonBits(client, bits)
+{
+	SetEntData(client, CSPlayerOffsets[1], bits, 4, true);
+}
+
+CSPlayer_GetActiveWeapon(client)
+{
+	return GetEntDataEnt2(client, CSPlayerOffsets[0]);
+}
+
+CSWeapon_GetPredictID(weapon)
+{
+	return GetEntData(weapon, CSWeaponOffsets[3]);
+}
+
+CSWeapon_SetPredictID(weapon, id)
+{
+	SetEntData(weapon, CSWeaponOffsets[3], id, 4, true);
+}
+
+CSGrenadeProjectile_GetOwner(grenade)
+{
+	return GetEntDataEnt2(grenade, CSGrenOffsets[3]);
+}
+
+CSViewModel_GetSequence(entity)
+{
+	return GetEntData(entity, CSViewModelOffsets[0]);
+}
+
+CSViewModel_SetSequence(entity, sequence)
+{
+	SetEntData(entity, CSViewModelOffsets[0], sequence, 4, true);
+}
+
+Float:CSViewModel_GetCycle(entity)
+{
+	new offset = FindDataMapOffs(entity, "m_flCycle");
+	if (offset != -1)
+	{
+		return GetEntDataFloat(entity, offset);
+	}
+	return -1.0;
+}
+
+CSViewModel_GetEffects(entity)
+{
+	return GetEntData(entity, CSViewModelOffsets[1]);
+}
+
+CSViewModel_SetEffects(entity, effects)
+{
+	SetEntData(entity, CSViewModelOffsets[1], effects, 4, true);
+}
+
+CSViewModel_AddEffects(entity, effect)
+{
+	new effects = CSViewModel_GetEffects(entity);
+	if (!(effect & effects))
+	{
+		effects |= effect;
+		CSViewModel_SetEffects(entity, effects);
+	}
+}
+
+CSViewModel_RemoveEffects(entity, effect)
+{
+	new effects = CSViewModel_GetEffects(entity);
+	if (effect & effects)
+	{
+		effects &= ~effect;
+		CSViewModel_SetEffects(entity, effects);
+	}
+}
+
+Float:CSViewModel_GetPlaybackRate(entity)
+{
+	return GetEntDataFloat(entity, CSViewModelOffsets[2]);
+}
+
+CSViewModel_SetPlaybackRate(entity, Float:rate)
+{
+	SetEntDataFloat(entity, CSViewModelOffsets[2], rate, true);
+}
+
+CSViewModel_SetModelIndex(entity, index)
+{
+	SetEntData(entity, CSViewModelOffsets[3], index, 4, true);
+}
+
+CSViewModel_GetModelIndex(entity)
+{
+	return GetEntData(entity, CSViewModelOffsets[3]);
+}
+
+CSViewModel_GetViewModelIndex(entity)
+{
+	return GetEntData(entity, CSViewModelOffsets[4]);
+}
+
+CSViewModel_GetOwner(entity)
+{
+	return GetEntDataEnt2(entity, CSViewModelOffsets[5]);
+}
+
+CSViewModel_SetWeapon(entity, weapon)
+{
+	SetEntDataEnt2(entity, CSViewModelOffsets[6], weapon, true);
 }
 
 public OnPluginEnd()
@@ -477,6 +644,8 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 
 public OnMapStart()
 {
+	PrecacheSound("resource/warning.wav");
+	
 	if (!g_bShouldLoadReload)
 	{
 		CacheModels(hKv);
@@ -672,6 +841,26 @@ CacheModels(Handle:kv)
 						{
 							KvSetString(kv, "planted_world_model", "");
 						}
+						
+						if (KvJumpToKey(kv, "Sounds"))
+						{
+							if (KvGotoFirstSubKey(kv))
+							{
+								do
+								{
+									KvGetSectionName(kv, buffer, sizeof(buffer));
+									if (buffer[0] && IsSoundFile(buffer))
+									{
+										PrecacheSound(buffer);
+										Format(buffer, sizeof(buffer), "sound/%s", buffer);
+										AddFileToDownloadsTable(buffer);
+									}
+								}
+								while (KvGotoNextKey(kv));
+								KvGoBack(kv);
+							}
+							KvGoBack(kv);
+						}
 					} while (KvGotoNextKey(kv));
 					
 					KvRewind(kv);
@@ -698,7 +887,15 @@ public Action:Command_Dev(client, argc)
 
 public OnClientConnected(client)
 {
-	if (g_hTrieSequence[client] == INVALID_HANDLE)
+	if (!g_hTrieSounds[client][0])
+	{
+		g_hTrieSounds[client][0] = CreateTrie();
+	}
+	if (!g_hTrieSounds[client][1])
+	{
+		g_hTrieSounds[client][1] = CreateTrie();
+	}
+	if (!g_hTrieSequence[client])
 	{
 		g_hTrieSequence[client] = CreateTrie();
 	}
@@ -716,47 +913,39 @@ public OnClientPutInServer(client)
 		g_bMenuSpawn[client] = false;
 	}
 	
-	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
-	{
-		if (Engine_Version == GAME_CSS_34)
-		{
-			SDKHook(client, SDKHook_WeaponDropPost, OnWeaponDropPost_Old);
-		}
-		SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost_Old);
-	}
-	else
-	{
-		SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost);
-	}
-	
-	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
+	GetLanguageInfo(GetClientLanguage(client), g_sClLang[client], sizeof(g_sClLang[]));
+	SDKHook(client, SDKHook_WeaponDropPost, OnWeaponDropPost);
+	SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost);
+	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquip);
 }
 
 public OnClientPostAdminCheck(client)
 {
-	GetLanguageInfo(GetClientLanguage(client), g_sClLang[client], sizeof(g_sClLang[]));
+	g_iFlagBits[client] = GetUserFlagBits(client);
+	if (!iCvar_AdminFlags)
+	{
+		g_bCanSetCustomModel[client] = true;
+		return;
+	}
+	if (IsFakeClient(client))
+	{
+		return;
+	}
+	g_bCanSetCustomModel[client] = bool:(iCvar_AdminFlags & g_iFlagBits[client]);
 }
 
 public OnClientCookiesCached(client)
 {
 	decl String:buffer[4];
-	if (bCvar_ForceDisabled)
+	GetClientCookie(client, g_hCookieWeaponModels, buffer, sizeof(buffer));
+	if (buffer[0])
 	{
-		g_bEnabled[client] = false;
-		SetClientCookie(client, g_hCookieWeaponModels, "0");
+		g_bEnabled[client] = bool:StringToInt(buffer);
 	}
 	else
 	{
-		GetClientCookie(client, g_hCookieWeaponModels, buffer, sizeof(buffer));
-		if (buffer[0])
-		{
-			g_bEnabled[client] = bool:StringToInt(buffer);
-		}
-		else
-		{
-			g_bEnabled[client] = !bCvar_DefaultDisabled;
-			SetClientCookie(client, g_hCookieWeaponModels, g_bEnabled[client] ? "1" : "0");
-		}
+		g_bEnabled[client] = !bCvar_DefaultDisabled;
+		SetClientCookie(client, g_hCookieWeaponModels, g_bEnabled[client] ? "1" : "0");
 	}
 	
 	if (bCvar_ForceSpawnMenu)
@@ -779,31 +968,54 @@ public OnClientCookiesCached(client)
 	}
 }
 
-bool:CanSetCustomModel(client)
-{
-	return bool:(!iCvar_AdminFlags || (!IsFakeClient(client) && bool:(GetUserFlagBits(client) & iCvar_AdminFlags)));
-}
+// Removed CanSetCustomModel - using g_bCanSetCustomModel[client] directly
 
 public OnClientDisconnect(client)
 {
-	if (Engine_Version == GAME_CSS_34 && IsClientInGame(client) && CanSetCustomModel(client) && g_bEnabled[client] && bCvar_Enable)
+	if (g_bCanSetCustomModel[client] && g_bEnabled[client] && bCvar_Enable)
 	{
-		for (new i = 0, weaponIndex = -1; i < 188; i += 4)
+		new weaponIndex = -1;
+		decl String:clsName[32];
+		for (new slot = 0; slot < 11; slot++)
 		{
-			weaponIndex = GetEntDataEnt2(client, m_hMyWeapons + i);
-			if (weaponIndex < 1 || iDroppedModel[weaponIndex] < 1)
+			while ((weaponIndex = GetPlayerWeaponSlot(client, slot)) != -1)
 			{
-				continue;
+				SDKHooks_DropWeapon(client, weaponIndex, NULL_VECTOR, NULL_VECTOR);
+				if (CSWeapon_GetPredictID(weaponIndex) > 0)
+				{
+					GetEdictClassname(weaponIndex, clsName, sizeof(clsName));
+					new start_index = 0;
+					if (StrContains(clsName, "weapon_", false) == 0)
+					{
+						start_index = 7;
+					}
+					
+					decl Handle:hCookie, String:sValue[64];
+					if (GetCookieValue(client, clsName[start_index], hCookie, sValue, sizeof(sValue)) && sValue[0] != '0')
+					{
+						SetVariantString("OnUser1 !self:FireUser2::0.0:-1");
+						AcceptEntityInput(weaponIndex, "AddOutput");
+						AcceptEntityInput(weaponIndex, "FireUser1");
+						HookSingleEntityOutput(weaponIndex, "OnUser2", Timer_SetDelayedWorldModel, true);
+						
+						new silencer_offset = GetEntSendPropOffs(weaponIndex, "m_bSilencerOn");
+						if (silencer_offset != -1)
+						{
+							SetEntData(weaponIndex, silencer_offset, false, 1, true);
+							HookSingleEntityOutput(weaponIndex, "OnPlayerPickup", OnPlayerPickup, true);
+						}
+					}
+				}
 			}
-			
-			CreateTimer(0.0, Timer_SetDelayedWorldModel, EntIndexToEntRef(weaponIndex), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 }
 
 public OnClientDisconnect_Post(client)
 {
+	g_iFlagBits[client] = 0;
 	NextChange[client] = 0.0;
+	g_bCanSetCustomModel[client] = false;
 	g_bDev[client] = false;
 	g_bEnabled[client] = false;
 	
@@ -811,7 +1023,15 @@ public OnClientDisconnect_Post(client)
 	weapon_switch[client] = INVALID_FUNCTION;
 	weapon_sequence[client] = INVALID_FUNCTION;
 	
+	ClearTrie(g_hTrieSounds[client][0]);
+	ClearTrie(g_hTrieSounds[client][1]);
 	ClearTrie(g_hTrieSequence[client]);
+	
+	for (new i = 0; i < 14; i++)
+	{
+		HasSoundAt[client][i] = false;
+	}
+	StopSounds[client] = false;
 	
 	for (new i = 0; i < Type_Max; i++)
 	{
@@ -819,7 +1039,6 @@ public OnClientDisconnect_Post(client)
 		{
 			AcceptEntityInput(WeaponAddons[client][i], "kill");
 		}
-		
 		WeaponAddons[client][i] = 0;
 	}
 }
@@ -845,22 +1064,15 @@ public OnEntitySpawned(entity)
 	new Owner = CSViewModel_GetOwner(entity);
 	if (0 < Owner <= MaxClients)
 	{
-		if (Engine_Version == GAME_CSGO)
+		switch (CSViewModel_GetViewModelIndex(entity))
 		{
-			ClientVM[Owner] = entity;
-		}
-		else
-		{
-			switch (CSViewModel_GetViewModelIndex(entity))
+			case 0:
 			{
-				case 0 :
-				{
-					ClientVM[Owner] = entity;
-				}
-				case 1 :
-				{
-					ClientVM2[Owner] = entity;
-				}
+				ClientVM[Owner][0] = entity;
+			}
+			case 1:
+			{
+				ClientVM[Owner][1] = entity;
 			}
 		}
 	}
@@ -994,14 +1206,12 @@ public OnBombPlanted(Handle:event, const String:name[], bool:dontBroadcast)
 	}
 }
 
-public OnWeaponDropPost_Old(client, weaponIndex)
+public OnWeaponDropPost(client, weaponIndex)
 {
-	if (weaponIndex > 0 && IsClientInGame(client) && CanSetCustomModel(client) && g_bEnabled[client] && bCvar_Enable && iDroppedModel[weaponIndex] > 0)
+	if (weaponIndex > 0 && g_bCanSetCustomModel[client] && g_bEnabled[client] && bCvar_Enable && CSWeapon_GetPredictID(weaponIndex) > 0)
 	{
 		decl String:clsName[32];
 		GetEdictClassname(weaponIndex, clsName, sizeof(clsName));
-		
-		StringToLower(clsName, clsName, sizeof(clsName));
 		
 		new start_index = 0;
 		if (StrContains(clsName, "weapon_", false) == 0)
@@ -1012,7 +1222,17 @@ public OnWeaponDropPost_Old(client, weaponIndex)
 		decl Handle:hCookie, String:sValue[64];
 		if (GetCookieValue(client, clsName[start_index], hCookie, sValue, sizeof(sValue)) && sValue[0] != '0')
 		{
-			CreateTimer(0.0, Timer_SetDelayedWorldModel, EntIndexToEntRef(weaponIndex), TIMER_FLAG_NO_MAPCHANGE);
+			SetVariantString("OnUser1 !self:FireUser2::0.0:-1");
+			AcceptEntityInput(weaponIndex, "AddOutput");
+			AcceptEntityInput(weaponIndex, "FireUser1");
+			HookSingleEntityOutput(weaponIndex, "OnUser2", Timer_SetDelayedWorldModel, true);
+			
+			new offset = GetEntSendPropOffs(weaponIndex, "m_bSilencerOn");
+			if (offset != -1)
+			{
+				SetEntData(weaponIndex, offset, false, 1, true);
+				HookSingleEntityOutput(weaponIndex, "OnPlayerPickup", OnPlayerPickup, true);
+			}
 		}
 	}
 }
@@ -1026,48 +1246,21 @@ public Action:CS_OnCSWeaponDrop(client, weaponIndex)
 }
 
 
-public Action:Timer_SetDelayedWorldModel(Handle:timer, any:ref)
+public Timer_SetDelayedWorldModel(const String:output[], weapon, activator, Float:delay)
 {
-	new weapon = EntRefToEntIndex(ref);
-	if (weapon == INVALID_ENT_REFERENCE)
+	new iModel = CSWeapon_GetPredictID(weapon);
+	if (iModel > 0)
 	{
-		return;
-	}
-	
-	if (iDroppedModel[weapon] > 0 && GetEntProp(weapon, Prop_Data, "m_iState") == 0)
-	{
-		if (Engine_Version != GAME_CSGO)
-		{
-			new silencer_offset = GetEntSendPropOffs(weapon, "m_bSilencerOn");
-			if (silencer_offset != -1 && bool:GetEntData(weapon, silencer_offset))
-			{
-				SetEntData(weapon, silencer_offset, false, true, true);
-				
-				HookSingleEntityOutput(weapon, "OnPlayerPickup", OnPlayerPickup, true);
-			}
-			
-			SetEntProp(weapon, Prop_Send, "m_iWorldModelIndex", iDroppedModel[weapon]);
-		}
-		
-		else
-		{
-			decl String:buffer[PLATFORM_MAX_PATH];
-			GetPrecachedModelOfIndex(iDroppedModel[weapon], buffer, sizeof(buffer));
-			SetEntityModel(weapon, buffer);
-		}
+		SetEntProp(weapon, Prop_Send, "m_iWorldModelIndex", iModel);
 	}
 }
 
 public OnPlayerPickup(const String:output[], weapon, client, Float:delay)
 {
-	new offset = GetEntSendPropOffs(weapon, "m_weaponMode");
+	new offset = GetEntSendPropOffs(weapon, "m_bSilencerOn");
 	if (offset != -1)
 	{
-		SetEntProp(weapon, Prop_Send, "m_bSilencerOn", GetEntData(weapon, offset));
-	}
-	else
-	{
-		SetEntProp(weapon, Prop_Send, "m_bSilencerOn", true);
+		SetEntData(weapon, offset, true, 1, true);
 	}
 }
 
@@ -1325,8 +1518,7 @@ public OnPostThinkPost_Old(client)
 		OldWeapon[client] = WeaponIndex;
 		return;
 	}
-	else
-	if (IsCustom[client])
+	else if (IsCustom[client])
 	{
 		if (g_bDev[client])
 		{
@@ -1391,8 +1583,38 @@ public OnPostThinkPost(client)
 {
 	OnPrePostThinkPost(client);
 	
-	if (!IsValidEdict(ClientVM[client]))
+	new WeaponIndex = CSPlayer_GetActiveWeapon(client);
+	new Sequence = CSViewModel_GetSequence(ClientVM[client][0]);
+	
+	if (WeaponIndex < 1)
 	{
+		if (IsCustom[client])
+		{
+			CSViewModel_AddEffects(ClientVM[client][1], EF_NODRAW);
+			CSViewModel_RemoveEffects(ClientVM[client][0], EF_NODRAW);
+			IsCustom[client] = false;
+			OldSequence[client] = 0;
+			iCycle[client] = 0;
+			next_cycle[client] = 0.0;
+			ClearTrie(g_hTrieSounds[client][0]);
+			ClearTrie(g_hTrieSounds[client][1]);
+			ClearTrie(g_hTrieSequence[client]);
+			
+			for (new i = 0; i < 14; i++)
+			{
+				HasSoundAt[client][i] = false;
+			}
+			StopSounds[client] = false;
+			NextSeq[client] = 0.0;
+			
+			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client][0], ClientVM[client][1], OldSequence[client], Sequence, true, false);
+			
+			hPlugin[client] = INVALID_HANDLE;
+			weapon_switch[client] = INVALID_FUNCTION;
+			weapon_sequence[client] = INVALID_FUNCTION;
+		}
+		
+		OldWeapon[client] = WeaponIndex;
 		return;
 	}
 	
@@ -1426,6 +1648,14 @@ public OnPostThinkPost(client)
 			next_cycle[client] = 0.0;
 			
 			ClearTrie(g_hTrieSequence[client]);
+			ClearTrie(g_hTrieSounds[client][0]);
+			ClearTrie(g_hTrieSounds[client][1]);
+			
+			for (new i = 0; i < 14; i++)
+			{
+				HasSoundAt[client][i] = false;
+			}
+			StopSounds[client] = false;
 			
 			NextSeq[client] = 0.0;
 			
@@ -1457,8 +1687,7 @@ public OnPostThinkPost(client)
 		OldWeapon[client] = WeaponIndex;
 		return;
 	}
-	else
-	if (IsCustom[client])
+	else if (IsCustom[client])
 	{
 		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence))
 		{
@@ -1472,6 +1701,52 @@ public OnPostThinkPost(client)
 					if (g_bDev[client])
 					{
 						PrintToChat(client, "\x04Sequence mapped (%s -> %d)", local_buffer, Sequence);
+					}
+				}
+				
+				// Sound processing
+				if (HasSoundAt[client][Sequence] || StopSounds[client])
+				{
+					if (!IsFakeClient(client))
+					{
+						EmitSoundToClient(client, "resource/warning.wav", client, SNDCHAN_WEAPON, SNDLEVEL_NONE, SND_STOP, 0.0, 100);
+						EmitSoundToClient(client, "resource/warning.wav", client, SNDCHAN_VOICE, SNDLEVEL_NONE, SND_STOP, 0.0, 100);
+					}
+					
+					if (Cycle < OldCycle[client])
+					{
+						if (g_bDev[client])
+						{
+							PrintToChat(client, "Stopped at cycle %d sequence %d", iCycle[client], OldSequence[client]);
+						}
+						iCycle[client] = 0;
+						next_cycle[client] = game_time + 0.05;
+					}
+					
+					static iOldCycle[MAXPLAYERS+1];
+					if (iOldCycle[client] != iCycle[client])
+					{
+						iOldCycle[client] = iCycle[client];
+						decl String:sBuf[12];
+						FormatEx(sBuf, sizeof(sBuf), "%d_%d", Sequence, iCycle[client]);
+						if (GetTrieString(g_hTrieSounds[client][0], sBuf, local_buffer, sizeof(local_buffer)))
+						{
+							decl sInfo[4];
+							GetTrieArray(g_hTrieSounds[client][1], sBuf, sInfo, sizeof(sInfo));
+							if (g_bDev[client])
+							{
+								PrintToChat(client, "Sound: %s, Individual: %d, Volume: %.2f, Level: %d, Pitch: %d, Sequence: %d, Cycle: %d", 
+									local_buffer, sInfo[0], Float:sInfo[1], sInfo[2], sInfo[3], Sequence, iCycle[client]);
+							}
+							if (sInfo[0])
+							{
+								EmitSoundToClient(client, local_buffer, client, SNDCHAN_AUTO, sInfo[2], 0, Float:sInfo[1], sInfo[3]);
+							}
+							else
+							{
+								EmitAmbientSound(local_buffer, NULL_VECTOR, client, sInfo[2], 0, Float:sInfo[1], sInfo[3]);
+							}
+						}
 					}
 				}
 			}
@@ -1629,6 +1904,14 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
 	{
 		ClearTrie(g_hTrieSequence[client]);
+		ClearTrie(g_hTrieSounds[client][0]);
+		ClearTrie(g_hTrieSounds[client][1]);
+		
+		for (new i = 0; i < 14; i++)
+		{
+			HasSoundAt[client][i] = false;
+		}
+		StopSounds[client] = false;
 		
 		iCycle[client] = 0;
 		next_cycle[client] = 0.0;
@@ -1726,7 +2009,9 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					
 					decl Float:vTemp[3];
 					KvGetVector(hKv, "muzzle_move", vTemp);
-					g_fMuzzlePos[client] = vTemp;
+					g_iPlayerData[client][2] = _:vTemp[0];
+					g_iPlayerData[client][3] = _:vTemp[1];
+					g_iPlayerData[client][4] = _:vTemp[2];
 					
 					new bool:jumped = false;
 					if (!sValue[0] || !(jumped = KvJumpToKey(hKv, sValue)) || ((bits = KvGetNum(hKv, "flag_bits")) > 0 && !(iClFlags & bits)))
@@ -1745,11 +2030,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 									index = KvGetNum(hKv, "view_model_index");
 									world_model = KvGetNum(hKv, "world_model_index");
 									
-									g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
-									g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
+									g_iPlayerData[client][0] = KvGetNum(hKv, "muzzle_flash", 0);
+									g_iPlayerData[client][1] = _:KvGetFloat(hKv, "muzzle_scale", 2.0);
 									
 									KvGetVector(hKv, "muzzle_move", vTemp);
-									g_fMuzzlePos[client] = vTemp;
+									g_iPlayerData[client][2] = _:vTemp[0];
+									g_iPlayerData[client][3] = _:vTemp[1];
+									g_iPlayerData[client][4] = _:vTemp[2];
 									
 									KvGetSectionName(hKv, sValue, sizeof(sValue));
 									
@@ -1769,11 +2056,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						index = KvGetNum(hKv, "view_model_index");
 						world_model = KvGetNum(hKv, "world_model_index");
 						
-						g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
-						g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
+						g_iPlayerData[client][0] = KvGetNum(hKv, "muzzle_flash", 0);
+						g_iPlayerData[client][1] = _:KvGetFloat(hKv, "muzzle_scale", 2.0);
 						
 						KvGetVector(hKv, "muzzle_move", vTemp);
-						g_fMuzzlePos[client] = vTemp;
+						g_iPlayerData[client][2] = _:vTemp[0];
+						g_iPlayerData[client][3] = _:vTemp[1];
+						g_iPlayerData[client][4] = _:vTemp[2];
 					}
 					
 					if (index != 0)
@@ -1796,6 +2085,38 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							KvGoBack(hKv);
 						}
 						new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+						
+						if (KvJumpToKey(hKv, "Sounds"))
+						{
+							StopSounds[client] = bool:KvGetNum(hKv, "stop_all_sounds", false);
+							if (KvGotoFirstSubKey(hKv))
+							{
+								decl String:map[128];
+								decl String:buffer[PLATFORM_MAX_PATH];
+								do
+								{
+									KvGetSectionName(hKv, buffer, sizeof(buffer));
+									if (buffer[0] && IsSoundFile(buffer))
+									{
+										new cached_sequence = KvGetNum(hKv, "sequence", 0);
+										FormatEx(map, sizeof(map), "%d_%d", cached_sequence, KvGetNum(hKv, "cycle", 0));
+										SetTrieString(g_hTrieSounds[client][0], map, buffer, true);
+										
+										decl sInfo[4];
+										sInfo[0] = KvGetNum(hKv, "individual", 0);
+										sInfo[1] = _:KvGetFloat(hKv, "volume", 1.0);
+										sInfo[2] = KvGetNum(hKv, "level", 75);
+										sInfo[3] = KvGetNum(hKv, "pitch", 100);
+										SetTrieArray(g_hTrieSounds[client][1], map, sInfo, 4, true);
+										
+										HasSoundAt[client][cached_sequence] = true;
+									}
+								}
+								while (KvGotoNextKey(hKv));
+								KvGoBack(hKv);
+							}
+							KvGoBack(hKv);
+						}
 						
 						if (IsValidEdict(ClientVM2[client]))
 						{
@@ -1854,6 +2175,14 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	}
 	
 	ClearTrie(g_hTrieSequence[client]);
+	ClearTrie(g_hTrieSounds[client][0]);
+	ClearTrie(g_hTrieSounds[client][1]);
+	
+	for (new i = 0; i < 14; i++)
+	{
+		HasSoundAt[client][i] = false;
+	}
+	StopSounds[client] = false;
 	
 	iCycle[client] = 0;
 	next_cycle[client] = 0.0;
@@ -1938,7 +2267,9 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				
 				decl Float:vTemp[3];
 				KvGetVector(hKv, "muzzle_move", vTemp);
-				g_fMuzzlePos[client] = vTemp;
+				g_iPlayerData[client][2] = _:vTemp[0];
+				g_iPlayerData[client][3] = _:vTemp[1];
+				g_iPlayerData[client][4] = _:vTemp[2];
 				
 				new bool:jumped = false;
 				if (!sValue[0] || !(jumped = KvJumpToKey(hKv, sValue)) || ((bits = KvGetNum(hKv, "flag_bits")) > 0 && !(iClFlags & bits)))
@@ -1958,11 +2289,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 								world_model = KvGetNum(hKv, "world_model_index");
 								dropped_model = KvGetNum(hKv, "drop_model_index");
 								
-								g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
-								g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
+								g_iPlayerData[client][0] = KvGetNum(hKv, "muzzle_flash", 0);
+								g_iPlayerData[client][1] = _:KvGetFloat(hKv, "muzzle_scale", 2.0);
 								
 								KvGetVector(hKv, "muzzle_move", vTemp);
-								g_fMuzzlePos[client] = vTemp;
+								g_iPlayerData[client][2] = _:vTemp[0];
+								g_iPlayerData[client][3] = _:vTemp[1];
+								g_iPlayerData[client][4] = _:vTemp[2];
 								
 								KvGetSectionName(hKv, sValue, sizeof(sValue));
 								
@@ -1983,11 +2316,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					world_model = KvGetNum(hKv, "world_model_index");
 					dropped_model = KvGetNum(hKv, "drop_model_index");
 					
-					g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
-					g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
+					g_iPlayerData[client][0] = KvGetNum(hKv, "muzzle_flash", 0);
+					g_iPlayerData[client][1] = _:KvGetFloat(hKv, "muzzle_scale", 2.0);
 					
 					KvGetVector(hKv, "muzzle_move", vTemp);
-					g_fMuzzlePos[client] = vTemp;
+					g_iPlayerData[client][2] = _:vTemp[0];
+					g_iPlayerData[client][3] = _:vTemp[1];
+					g_iPlayerData[client][4] = _:vTemp[2];
 				}
 				
 				if (index != 0)
@@ -2010,6 +2345,38 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						KvGoBack(hKv);
 					}
 					new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+					
+					if (KvJumpToKey(hKv, "Sounds"))
+					{
+						StopSounds[client] = bool:KvGetNum(hKv, "stop_all_sounds", false);
+						if (KvGotoFirstSubKey(hKv))
+						{
+							decl String:map[128];
+							decl String:buffer[PLATFORM_MAX_PATH];
+							do
+							{
+								KvGetSectionName(hKv, buffer, sizeof(buffer));
+								if (buffer[0] && IsSoundFile(buffer))
+								{
+									new cached_sequence = KvGetNum(hKv, "sequence", 0);
+									FormatEx(map, sizeof(map), "%d_%d", cached_sequence, KvGetNum(hKv, "cycle", 0));
+									SetTrieString(g_hTrieSounds[client][0], map, buffer, true);
+									
+									decl sInfo[4];
+									sInfo[0] = KvGetNum(hKv, "individual", 0);
+									sInfo[1] = _:KvGetFloat(hKv, "volume", 1.0);
+									sInfo[2] = KvGetNum(hKv, "level", 75);
+									sInfo[3] = KvGetNum(hKv, "pitch", 100);
+									SetTrieArray(g_hTrieSounds[client][1], map, sInfo, 4, true);
+									
+									HasSoundAt[client][cached_sequence] = true;
+								}
+							}
+							while (KvGotoNextKey(hKv));
+							KvGoBack(hKv);
+						}
+						KvGoBack(hKv);
+					}
 					
 					if (!IsCustom[client])
 					{
@@ -2867,6 +3234,14 @@ bool:IsModelFile(const String:model[])
 	return !strcmp(buf, "mdl", false);
 }
 
+bool:IsSoundFile(const String:sound[])
+{
+	decl String:buf[4];
+	ZGetExtension(sound, buf, sizeof(buf));
+	
+	return (!strcmp(buf, "mp3", false) || !strcmp(buf, "wav", false));
+}
+
 GetPrecachedModelOfIndex(index, String:buffer[], maxlength)
 {
 	ReadStringTable(g_iTable, index, buffer, maxlength);
@@ -3140,4 +3515,83 @@ stock StringToLower(const String:input[], String:output[], size)
 	}
 
 	output[x] = '\0';
+}
+
+public Action:CSS_Hook_ShotgunShot(const String:te_name[], const clients[], numClients, Float:delay)
+{
+	new client = TE_ReadNum("m_iPlayer") + 1;
+	if (IsCustom[client])
+	{
+		new Sequence = CSViewModel_GetSequence(ClientVM[client]);
+		if (HasSoundAt[client][Sequence])
+		{
+			if (g_iPlayerData[client][0])
+			{
+				new WeaponIndex = CSPlayer_GetActiveWeapon(client);
+				if (WeaponIndex != -1)
+				{
+					new offset = FindDataMapOffs(WeaponIndex, "m_bSilencerOn");
+					if (offset == -1 || !GetEntData(WeaponIndex, offset))
+					{
+						decl Float:vOrigin[3];
+						decl Float:vAngles[3];
+						TE_ReadVector("m_vecOrigin", vOrigin);
+						vAngles[0] = TE_ReadFloat("m_vecAngles[0]");
+						vAngles[1] = TE_ReadFloat("m_vecAngles[1]");
+						vAngles[2] = 0.0;
+						
+						AddInFrontOf(vOrigin, vAngles, Float:g_iPlayerData[client][2], vOrigin);
+						
+						decl Float:vDummy[3];
+						vDummy[0] = vAngles[0];
+						vDummy[1] = vAngles[1];
+						vDummy[2] = vAngles[2];
+						
+						vAngles[0] = 90.0;
+						AddInFrontOf(vOrigin, vAngles, Float:g_iPlayerData[client][3], vOrigin);
+						
+						vAngles[0] = vDummy[0];
+						vAngles[1] -= 90.0;
+						AddInFrontOf(vOrigin, vAngles, Float:g_iPlayerData[client][4], vOrigin);
+						
+						vAngles = vDummy;
+						
+						TE_SetupMuzzleFlash(vOrigin, vAngles, Float:g_iPlayerData[client][1], 1);
+						
+						new numPlayers;
+						decl players[MaxClients];
+						for (new i = 1; i <= MaxClients; i++)
+						{
+							if (client != i && IsClientInGame(i) && !IsFakeClient(i))
+							{
+								players[numPlayers++] = i;
+							}
+						}
+						TE_Send(players, numPlayers, 0.0);
+					}
+				}
+			}
+			return Plugin_Handled;
+		}
+	}
+	return Plugin_Continue;
+}
+
+public Action:NormalSoundHook(clients[64], &numClients, String:sample[256], &entity, &channel, &Float:volume, &level, &pitch, &flags)
+{
+	if (0 < entity <= MaxClients && IsCustom[entity] && (channel == SNDCHAN_WEAPON || channel == SNDCHAN_VOICE) && volume > 0.0)
+	{
+		channel = SNDCHAN_AUTO;
+		return Plugin_Changed;
+	}
+	return Plugin_Continue;
+}
+
+TE_SetupMuzzleFlash(Float:pos[3], Float:angles[3], Float:Scale, Type)
+{
+	TE_Start("MuzzleFlash");
+	TE_WriteVector("m_vecOrigin", pos);
+	TE_WriteVector("m_vecAngles", angles);
+	TE_WriteFloat("m_flScale", Scale);
+	TE_WriteNum("m_nType", Type);
 }
