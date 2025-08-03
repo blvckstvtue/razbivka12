@@ -58,6 +58,7 @@ new bool:g_bEnabled[MAXPLAYERS+1] = {true, ...}, Handle:g_hCookieWeaponModels;
 
 new bool:SpawnCheck[MAXPLAYERS+1];
 new bool:IsCustom[MAXPLAYERS+1];
+new bool:IsFlipModel[MAXPLAYERS+1];
 
 new String:g_sClLang[MAXPLAYERS+1][3];
 new String:g_sServLang[3];
@@ -1296,6 +1297,7 @@ public OnPostThinkPost_Old(client)
 			CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 			
 			IsCustom[client] = false;
+			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1416,9 +1418,11 @@ public OnPostThinkPost(client)
 	{
 		if (IsCustom[client])
 		{
-			CSViewModel_SetModelIndex(ClientVM[client], iPrevIndex[client]);
+			CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+			CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
 			
 			IsCustom[client] = false;
+			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1796,6 +1800,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							KvGoBack(hKv);
 						}
 						new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+						IsFlipModel[client] = b_flip_model;
 						
 						if (IsValidEdict(ClientVM2[client]))
 						{
@@ -1839,6 +1844,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				}
 				
 				IsCustom[client] = false;
+				IsFlipModel[client] = false;
 				
 				NextSeq[client] = 0.0;
 			}
@@ -2010,6 +2016,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						KvGoBack(hKv);
 					}
 					new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+					IsFlipModel[client] = b_flip_model;
 					
 					if (!IsCustom[client])
 					{
@@ -2048,6 +2055,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		iPrevIndex[client] = 0;
 		
 		IsCustom[client] = false;
+		IsFlipModel[client] = false;
 		
 		NextSeq[client] = 0.0;
 	}
@@ -2070,6 +2078,16 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 			{
 				SetEntProp(iWorldModel, Prop_Send, "m_nModelIndex", dropped_model);
 			}
+		}
+	}
+	
+	// Maintain flip model state for subsequent calls  
+	if (result && IsCustom[client] && IsFlipModel[client])
+	{
+		new weapon = GetPlayerWeaponSlot(client, 2);
+		if (weapon != -1)
+		{
+			CSViewModel_SetWeapon(ClientVM[client], weapon);
 		}
 	}
 	
