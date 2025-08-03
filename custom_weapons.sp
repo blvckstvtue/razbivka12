@@ -1691,11 +1691,8 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					if (custom_change)
 					{
 						CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-						
 						CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
-						
 						CSViewModel_SetWeapon(ClientVM2[client], WeaponIndex);
-						
 						CSViewModel_SetSequence(ClientVM2[client], Sequence);
 						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 					}
@@ -1800,7 +1797,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						if (IsValidEdict(ClientVM2[client]))
 						{
 							CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-							
 							CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
 							CSViewModel_SetModelIndex(ClientVM2[client], index);
 							
@@ -1821,7 +1817,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 							
 							IsCustom[client] = true;
-							
 							result = true;
 						}
 					}
@@ -1839,7 +1834,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				}
 				
 				IsCustom[client] = false;
-				
 				NextSeq[client] = 0.0;
 			}
 			
@@ -1853,6 +1847,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		return result;
 	}
 	
+	// For CSGO and CSS (non-old style), use the existing modern logic
 	ClearTrie(g_hTrieSequence[client]);
 	
 	iCycle[client] = 0;
