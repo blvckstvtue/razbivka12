@@ -1692,7 +1692,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					{
 						CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
 						CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
-						CSViewModel_SetWeapon(ClientVM2[client], weapon);
+						CSViewModel_SetWeapon(ClientVM2[client], WeaponIndex);
 						CSViewModel_SetSequence(ClientVM2[client], Sequence);
 						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 					}
