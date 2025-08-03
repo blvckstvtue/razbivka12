@@ -930,6 +930,10 @@ bool:ParseCookieValue(const String:cookie_value[], String:model_name[], model_si
 				decl String:skin_str[8];
 				strcopy(skin_str, sizeof(skin_str), cookie_value[pos + 1]);
 				skin_index = StringToInt(skin_str);
+				// Clamp to valid Source engine range (0-15) to prevent fallback to default models
+				if (skin_index > 15) {
+					skin_index = skin_index % 16;
+				}
 				return true;
 			}
 		}
@@ -1464,8 +1468,7 @@ public OnPostThinkPost_Old(client)
 		OldWeapon[client] = WeaponIndex;
 		return;
 	}
-	else
-	if (IsCustom[client])
+	else if (IsCustom[client])
 	{
 		if (g_bDev[client])
 		{
@@ -1650,8 +1653,7 @@ public OnPostThinkPost(client)
 		OldWeapon[client] = WeaponIndex;
 		return;
 	}
-	else
-	if (IsCustom[client])
+	else if (IsCustom[client])
 	{
 		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence))
 		{
@@ -2005,6 +2007,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 									index = KvGetNum(hKv, "view_model_index");
 									// Use selected skin if available, otherwise use default
 									skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
+									// CLAMP
+									if (skin_index > 15) {
+										skin_index = skin_index % 16;
+									}
 									world_model = KvGetNum(hKv, "world_model_index");
 									
 									g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
@@ -2037,6 +2043,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						index = KvGetNum(hKv, "view_model_index");
 						// Use selected skin if available, otherwise use default
 						skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
+						// CLAMP
+						if (skin_index > 15) {
+							skin_index = skin_index % 16;
+						}
 						world_model = KvGetNum(hKv, "world_model_index");
 						
 						g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
@@ -2288,6 +2298,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 								index = KvGetNum(hKv, "view_model_index");
 								// Use selected skin if available, otherwise use default
 								skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
+								// CLAMP
+								if (skin_index > 15) {
+									skin_index = skin_index % 16;
+								}
 								world_model = KvGetNum(hKv, "world_model_index");
 								dropped_model = KvGetNum(hKv, "drop_model_index");
 								
@@ -2327,6 +2341,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					index = KvGetNum(hKv, "view_model_index");
 					// Use selected skin if available, otherwise use default
 					skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
+					// CLAMP
+					if (skin_index > 15) {
+						skin_index = skin_index % 16;
+					}
 					world_model = KvGetNum(hKv, "world_model_index");
 					dropped_model = KvGetNum(hKv, "drop_model_index");
 					
