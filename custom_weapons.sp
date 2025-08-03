@@ -58,7 +58,6 @@ new bool:g_bEnabled[MAXPLAYERS+1] = {true, ...}, Handle:g_hCookieWeaponModels;
 
 new bool:SpawnCheck[MAXPLAYERS+1];
 new bool:IsCustom[MAXPLAYERS+1];
-new bool:IsFlipModel[MAXPLAYERS+1];
 
 new String:g_sClLang[MAXPLAYERS+1][3];
 new String:g_sServLang[3];
@@ -807,7 +806,6 @@ public OnClientDisconnect_Post(client)
 	NextChange[client] = 0.0;
 	g_bDev[client] = false;
 	g_bEnabled[client] = false;
-	IsFlipModel[client] = false;
 	
 	hPlugin[client] = INVALID_HANDLE;
 	weapon_switch[client] = INVALID_FUNCTION;
@@ -1298,7 +1296,6 @@ public OnPostThinkPost_Old(client)
 			CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 			
 			IsCustom[client] = false;
-			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1432,7 +1429,6 @@ public OnPostThinkPost(client)
 			CSViewModel_SetModelIndex(ClientVM[client], iPrevIndex[client]);
 			
 			IsCustom[client] = false;
-			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1474,7 +1470,15 @@ public OnPostThinkPost(client)
 	else
 	if (IsCustom[client])
 	{
-		new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
+		// Use ClientVM2 if available (CSS), otherwise ClientVM (CSGO)
+		new target_vm = (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client])) ? ClientVM2[client] : ClientVM[client];
+		
+		if (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client]))
+		{
+			// Synchronize playback rate like decompiled.sp
+			CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
+		}
+		
 		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, target_vm, OldSequence[client], Sequence))
 		{
 			case Plugin_Continue :
@@ -1495,17 +1499,11 @@ public OnPostThinkPost(client)
 				CSViewModel_SetSequence(target_vm, Sequence);
 			}
 		}
-		
-		// Synchronize playback rate for FLIP MODEL
-		if (IsFlipModel[client] && IsValidEdict(ClientVM2[client]) && IsValidEdict(ClientVM[client]))
-		{
-			CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
-		}
 	}
 	
 	if (iPrevSeq[client] != 0 && NextSeq[client] < game_time)
 	{
-		new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
+		new target_vm = (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client])) ? ClientVM2[client] : ClientVM[client];
 		//CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 		CSViewModel_SetSequence(target_vm, iPrevSeq[client]);
 		iPrevSeq[client] = 0;
@@ -1528,7 +1526,7 @@ public OnPostThinkPost(client)
 	
 		if (IsCustom[client] && Sequence == OldSequence[client])
 		{
-			new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
+			new target_vm = (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client])) ? ClientVM2[client] : ClientVM[client];
 			//CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
 			CSViewModel_SetSequence(target_vm, 0);
 			iPrevSeq[client] = Sequence;
@@ -1862,7 +1860,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 			}
 			
 			IsCustom[client] = false;
-			IsFlipModel[client] = false;
 			
 			NextSeq[client] = 0.0;
 			}
@@ -2035,31 +2032,30 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					}
 					new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
 					
-					if (b_flip_model && Engine_Version != GAME_CSGO && ClientVM2[client] != 0)
+					// Always use two view models like decompiled.sp (except for CSGO)
+					if (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client]))
 					{
-						// Use two view models like decompiled.sp for FLIP MODEL
 						CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
 						CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
 						CSViewModel_SetModelIndex(ClientVM2[client], index);
-						
-						new weapon = GetPlayerWeaponSlot(client, 2);
-						if (weapon != -1)
+						if (b_flip_model)
 						{
-							CSViewModel_SetWeapon(ClientVM2[client], weapon);
+							new weapon = GetPlayerWeaponSlot(client, 2);
+							if (weapon != -1)
+							{
+								CSViewModel_SetWeapon(ClientVM2[client], weapon);
+							}
 						}
 						else
 						{
 							CSViewModel_SetWeapon(ClientVM2[client], WeaponIndex);
 						}
-						
 						CSViewModel_SetSequence(ClientVM2[client], Sequence);
 						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
-						
-						IsFlipModel[client] = true;
 					}
 					else
 					{
-						// Original single view model logic
+						// CSGO single view model logic
 						if (!IsCustom[client])
 						{
 							iPrevIndex[client] = CSViewModel_GetModelIndex(ClientVM[client]);
@@ -2090,8 +2086,8 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	}
 	if (!result && IsCustom[client])
 	{
-		// Hide ClientVM2 if it was used for FLIP MODEL
-		if (Engine_Version != GAME_CSGO && ClientVM2[client] != 0)
+		// Hide ClientVM2 and show ClientVM like decompiled.sp
+		if (Engine_Version != GAME_CSGO && IsValidEdict(ClientVM2[client]))
 		{
 			CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
 			CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
@@ -2105,7 +2101,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		iPrevIndex[client] = 0;
 		
 		IsCustom[client] = false;
-		IsFlipModel[client] = false;
 		
 		NextSeq[client] = 0.0;
 	}
