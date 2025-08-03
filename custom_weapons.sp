@@ -183,7 +183,7 @@ public OnPluginStart()
 	bCvar_MenuCloseNotice = GetConVarBool(hCvar_MenuCloseNotice);
 	HookConVarChange(hCvar_MenuCloseNotice, OnConVarChange);
 	
-	hCvar_OldStyleModelChange = CreateConVar("sm_custom_weapons_css_old_style_model_change", "0", "CS:S OB Use old style model change method for flip view model support. Not recommended! May reduce server performance", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	hCvar_OldStyleModelChange = CreateConVar("sm_custom_weapons_css_old_style_model_change", "1", "CS:S OB Use old style model change method for flip view model support. REQUIRED for FLIP MODEL to work properly!", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	bCvar_OldStyleModelChange = GetConVarBool(hCvar_OldStyleModelChange);
 	HookConVarChange(hCvar_OldStyleModelChange, OnConVarChange);
 	
@@ -1378,7 +1378,17 @@ public OnPostThinkPost_Old(client)
 		SpawnCheck[client] = false;
 		if (IsCustom[client])
 		{
-			CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+			if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+			{
+				CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+			}
+			else
+			{
+				// In decompiled.sp this hides the original view model (ClientVM[client][0])
+				// We need to hide the original view model, not the custom one
+				// But since we're using the new method, we hide the original view model
+				// which should already be hidden when custom model is active
+			}
 		}
 	}
 	
@@ -1510,7 +1520,7 @@ public OnPostThinkPost(client)
 			CSViewModel_SetSequence(ClientVM[client], 0);
 			iPrevSeq[client] = Sequence;
 			
-			NextSeq[client] = game_time + 0.03;
+			NextSeq[client] = game_time + 0.02;
 		}
 	}
 	
@@ -1834,13 +1844,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 				if (IsValidEdict(ClientVM2[client]))
 				{
-					CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
-					CSViewModel_SetSequence(ClientVM2[client], 0);
-				}
-				
-				IsCustom[client] = false;
-				
-				NextSeq[client] = 0.0;
+									CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
+				CSViewModel_SetSequence(ClientVM2[client], 0);
+			}
+			
+			IsCustom[client] = false;
+			
+			NextSeq[client] = 0.0;
 			}
 			
 			if (world_model > 0)
@@ -2015,16 +2025,20 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					{
 						iPrevIndex[client] = CSViewModel_GetModelIndex(ClientVM[client]);
 					}
+					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
+					CSViewModel_SetModelIndex(ClientVM[client], index);
 					if (b_flip_model)
 					{
 						new weapon = GetPlayerWeaponSlot(client, 2);
 						if (weapon != -1)
 						{
-							CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+							CSViewModel_SetWeapon(ClientVM[client], weapon);
 						}
 					}
-					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
-					CSViewModel_SetModelIndex(ClientVM[client], index);
+					else
+					{
+						CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+					}
 					IsCustom[client] = true;
 					
 					result = true;
