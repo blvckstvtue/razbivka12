@@ -554,10 +554,10 @@ CacheModels(Handle:kv)
 				
 				IsCategoryFilled[category] = true;
 				
-				KvGetString(hKv, "flags", buffer, sizeof(buffer));
+				KvGetString(kv, "flags", buffer, sizeof(buffer));
 				if (buffer[0])
 				{
-					KvSetNum(hKv, "flag_bits", ReadFlagString(buffer));
+					KvSetNum(kv, "flag_bits", ReadFlagString(buffer));
 				}
 				
 				KvGetSectionName(kv, clsName, sizeof(clsName));
@@ -597,9 +597,9 @@ CacheModels(Handle:kv)
 							KvSetString(kv, g_sServLang, name);
 						}
 						
-						KvGetString(hKv, "flags", buffer, sizeof(buffer));
+						KvGetString(kv, "flags", buffer, sizeof(buffer));
 						StringToLower(buffer, buffer, sizeof(buffer));
-						KvSetNum(hKv, "flag_bits", ReadFlagString(buffer));
+						KvSetNum(kv, "flag_bits", ReadFlagString(buffer));
 						
 						KvGetString(kv, "view_model", buffer, sizeof(buffer));
 						if (buffer[0] && IsModelFile(buffer))
@@ -641,10 +641,15 @@ CacheModels(Handle:kv)
 						{
 							KvSetString(kv, "planted_world_model", "");
 						}
+						
+						// Четем скин параметрите
+						new skin = KvGetNum(kv, "skin", 0);
+						new max_skin = KvGetNum(kv, "max_skin", 0);
+						KvSetNum(kv, "skin_index", skin);
+						KvSetNum(kv, "max_skin_index", max_skin);
 					} while (KvGotoNextKey(kv));
 					
-					KvRewind(kv);
-					KvJumpToKey(kv, clsName);
+					KvGoBack(kv);
 				}
 			}
 		} while (KvGotoNextKey(kv));
@@ -1776,6 +1781,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
 							CSViewModel_SetModelIndex(ClientVM2[client], index);
 							
+							// Задаваме скин ако има такъв
+							new skin = KvGetNum(hKv, "skin_index", 0);
+							if (skin > 0)
+							{
+								SetEntProp(ClientVM2[client], Prop_Send, "m_nSkin", skin);
+							}
+							
 							if (b_flip_model)
 							{
 								new weapon = GetPlayerWeaponSlot(client, 2);
@@ -2001,6 +2013,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					}
 					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
 					CSViewModel_SetModelIndex(ClientVM[client], index);
+					
+					// Задаваме скин ако има такъв
+					new skin = KvGetNum(hKv, "skin_index", 0);
+					if (skin > 0)
+					{
+						SetEntProp(ClientVM[client], Prop_Send, "m_nSkin", skin);
+					}
 					IsCustom[client] = true;
 					
 					result = true;
