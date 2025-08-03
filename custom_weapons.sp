@@ -2015,6 +2015,8 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					{
 						iPrevIndex[client] = CSViewModel_GetModelIndex(ClientVM[client]);
 					}
+					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
+					CSViewModel_SetModelIndex(ClientVM[client], index);
 					if (b_flip_model)
 					{
 						new weapon = GetPlayerWeaponSlot(client, 2);
@@ -2023,8 +2025,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							CSViewModel_SetWeapon(ClientVM[client], weapon);
 						}
 					}
-					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
-					CSViewModel_SetModelIndex(ClientVM[client], index);
+					else
+					{
+						CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+					}
 					IsCustom[client] = true;
 					
 					result = true;
