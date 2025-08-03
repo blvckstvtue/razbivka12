@@ -58,6 +58,7 @@ new bool:g_bEnabled[MAXPLAYERS+1] = {true, ...}, Handle:g_hCookieWeaponModels;
 
 new bool:SpawnCheck[MAXPLAYERS+1];
 new bool:IsCustom[MAXPLAYERS+1];
+new bool:IsFlipModel[MAXPLAYERS+1];
 
 new String:g_sClLang[MAXPLAYERS+1][3];
 new String:g_sServLang[3];
@@ -806,6 +807,7 @@ public OnClientDisconnect_Post(client)
 	NextChange[client] = 0.0;
 	g_bDev[client] = false;
 	g_bEnabled[client] = false;
+	IsFlipModel[client] = false;
 	
 	hPlugin[client] = INVALID_HANDLE;
 	weapon_switch[client] = INVALID_FUNCTION;
@@ -1296,6 +1298,7 @@ public OnPostThinkPost_Old(client)
 			CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 			
 			IsCustom[client] = false;
+			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1429,6 +1432,7 @@ public OnPostThinkPost(client)
 			CSViewModel_SetModelIndex(ClientVM[client], iPrevIndex[client]);
 			
 			IsCustom[client] = false;
+			IsFlipModel[client] = false;
 			
 			OldSequence[client] = 0;
 	
@@ -1470,7 +1474,8 @@ public OnPostThinkPost(client)
 	else
 	if (IsCustom[client])
 	{
-		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence))
+		new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
+		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, target_vm, OldSequence[client], Sequence))
 		{
 			case Plugin_Continue :
 			{
@@ -1478,7 +1483,7 @@ public OnPostThinkPost(client)
 				IntToString(Sequence, local_buffer, sizeof(local_buffer));
 				if (OldSequence[client] != Sequence && GetTrieValue(g_hTrieSequence[client], local_buffer, Sequence))	// Sequence mapper
 				{
-					CSViewModel_SetSequence(ClientVM[client], Sequence);
+					CSViewModel_SetSequence(target_vm, Sequence);
 					if (g_bDev[client])
 					{
 						PrintToChat(client, "\x04Sequence mapped (%s -> %d)", local_buffer, Sequence);
@@ -1487,15 +1492,22 @@ public OnPostThinkPost(client)
 			}
 			case Plugin_Changed :
 			{
-				CSViewModel_SetSequence(ClientVM[client], Sequence);
+				CSViewModel_SetSequence(target_vm, Sequence);
 			}
+		}
+		
+		// Synchronize playback rate for FLIP MODEL
+		if (IsFlipModel[client] && IsValidEdict(ClientVM2[client]) && IsValidEdict(ClientVM[client]))
+		{
+			CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 		}
 	}
 	
 	if (iPrevSeq[client] != 0 && NextSeq[client] < game_time)
 	{
+		new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
 		//CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
-		CSViewModel_SetSequence(ClientVM[client], iPrevSeq[client]);
+		CSViewModel_SetSequence(target_vm, iPrevSeq[client]);
 		iPrevSeq[client] = 0;
 	}
 	
@@ -1516,8 +1528,9 @@ public OnPostThinkPost(client)
 	
 		if (IsCustom[client] && Sequence == OldSequence[client])
 		{
+			new target_vm = IsFlipModel[client] ? ClientVM2[client] : ClientVM[client];
 			//CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-			CSViewModel_SetSequence(ClientVM[client], 0);
+			CSViewModel_SetSequence(target_vm, 0);
 			iPrevSeq[client] = Sequence;
 			
 			NextSeq[client] = game_time + 0.02;
@@ -1844,13 +1857,14 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
 				if (IsValidEdict(ClientVM2[client]))
 				{
-					CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
-					CSViewModel_SetSequence(ClientVM2[client], 0);
-				}
-				
-				IsCustom[client] = false;
-				
-				NextSeq[client] = 0.0;
+									CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
+				CSViewModel_SetSequence(ClientVM2[client], 0);
+			}
+			
+			IsCustom[client] = false;
+			IsFlipModel[client] = false;
+			
+			NextSeq[client] = 0.0;
 			}
 			
 			if (world_model > 0)
@@ -2040,6 +2054,8 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						
 						CSViewModel_SetSequence(ClientVM2[client], Sequence);
 						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
+						
+						IsFlipModel[client] = true;
 					}
 					else
 					{
@@ -2089,6 +2105,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		iPrevIndex[client] = 0;
 		
 		IsCustom[client] = false;
+		IsFlipModel[client] = false;
 		
 		NextSeq[client] = 0.0;
 	}
