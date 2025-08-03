@@ -417,7 +417,7 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 					{
 						if (IsCustom[client])
 						{
-							CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
+							CSViewModel_RemoveEffects(ClientVM[client][1], EF_NODRAW);
 							CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
 							
 							OnWeaponChanged(client, CSPlayer_GetActiveWeapon(client), CSViewModel_GetSequence(ClientVM[client]));
@@ -828,7 +828,7 @@ public OnEntitySpawned(entity)
 	{
 		if (Engine_Version == GAME_CSGO)
 		{
-			ClientVM[Owner] = entity;
+			ClientVM[Owner][1] = entity;
 		}
 		else
 		{
@@ -836,11 +836,11 @@ public OnEntitySpawned(entity)
 			{
 				case 0 :
 				{
-					ClientVM[Owner] = entity;
+					ClientVM[Owner][1] = entity;
 				}
 				case 1 :
 				{
-					ClientVM2[Owner] = entity;
+					ClientVM[Owner][0] = entity;
 				}
 			}
 		}
