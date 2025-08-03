@@ -1378,7 +1378,17 @@ public OnPostThinkPost_Old(client)
 		SpawnCheck[client] = false;
 		if (IsCustom[client])
 		{
-			CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+			if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+			{
+				CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+			}
+			else
+			{
+				// In decompiled.sp this hides the original view model (ClientVM[client][0])
+				// We need to hide the original view model, not the custom one
+				// But since we're using the new method, we hide the original view model
+				// which should already be hidden when custom model is active
+			}
 		}
 	}
 	
@@ -1510,7 +1520,7 @@ public OnPostThinkPost(client)
 			CSViewModel_SetSequence(ClientVM[client], 0);
 			iPrevSeq[client] = Sequence;
 			
-			NextSeq[client] = game_time + 0.03;
+			NextSeq[client] = game_time + 0.02;
 		}
 	}
 	
@@ -1626,7 +1636,36 @@ public OnWeaponEquipPost(client, weapon)
 
 bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 {
-	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+	// Check if current weapon has flip_view_model to force old style logic
+	new bool:has_flip_model = false;
+	if (CanSetCustomModel(client) && g_bEnabled[client] && bCvar_Enable)
+	{
+		decl String:ClassName[32];
+		GetEdictClassname(WeaponIndex, ClassName, sizeof(ClassName));
+		StringToLower(ClassName, ClassName, sizeof(ClassName));
+		new start_index = 0;
+		if (StrContains(ClassName, "weapon_", false) == 0)
+		{
+			start_index = 7;
+		}
+		if (KvJumpToKey(hKv, ClassName[start_index]))
+		{
+			decl Handle:hCookie, String:sValue[64];
+			GetCookieValue(client, ClassName[start_index], hCookie, sValue, sizeof(sValue));
+			if (sValue[0] && sValue[0] != '0' && KvJumpToKey(hKv, sValue))
+			{
+				has_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+				KvGoBack(hKv);
+			}
+			if (!has_flip_model)
+			{
+				has_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
+			}
+			KvRewind(hKv);
+		}
+	}
+	
+	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange) || has_flip_model)
 	{
 		ClearTrie(g_hTrieSequence[client]);
 		
