@@ -826,8 +826,10 @@ public OnClientDisconnect_Post(client)
 	weapon_switch[client] = INVALID_FUNCTION;
 	weapon_sequence[client] = INVALID_FUNCTION;
 	
-	ClearTrie(g_hTrieSounds[client][0]);
-	ClearTrie(g_hTrieSounds[client][1]);
+	if (g_hTrieSounds[client][0] != INVALID_HANDLE)
+		ClearTrie(g_hTrieSounds[client][0]);
+	if (g_hTrieSounds[client][1] != INVALID_HANDLE)
+		ClearTrie(g_hTrieSounds[client][1]);
 	ClearTrie(g_hTrieSequence[client]);
 	
 	for (new i = 0; i < 14; i++)
@@ -1433,8 +1435,10 @@ public OnPostThinkPost_Old(client)
 			iCycle[client] = 0;
 			next_cycle[client] = 0.0;
 			
-			ClearTrie(g_hTrieSounds[client][0]);
-			ClearTrie(g_hTrieSounds[client][1]);
+			if (g_hTrieSounds[client][0] != INVALID_HANDLE)
+				ClearTrie(g_hTrieSounds[client][0]);
+			if (g_hTrieSounds[client][1] != INVALID_HANDLE)
+				ClearTrie(g_hTrieSounds[client][1]);
 			ClearTrie(g_hTrieSequence[client]);
 			
 			for (new i = 0; i < 14; i++)
@@ -1607,12 +1611,14 @@ public OnPostThinkPost(client)
 			
 			OldSequence[client] = 0;
 	
-			iCycle[client] = 0;
-			next_cycle[client] = 0.0;
-			
+					iCycle[client] = 0;
+		next_cycle[client] = 0.0;
+		
+		if (g_hTrieSounds[client][0] != INVALID_HANDLE)
 			ClearTrie(g_hTrieSounds[client][0]);
+		if (g_hTrieSounds[client][1] != INVALID_HANDLE)
 			ClearTrie(g_hTrieSounds[client][1]);
-			ClearTrie(g_hTrieSequence[client]);
+		ClearTrie(g_hTrieSequence[client]);
 			
 			for (new i = 0; i < 14; i++)
 			{
@@ -1868,8 +1874,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	// Винаги използваме два view model-а за всички версии освен CSGO
 	if (Engine_Version != GAME_CSGO)
 	{
-		ClearTrie(g_hTrieSounds[client][0]);
-		ClearTrie(g_hTrieSounds[client][1]);
+		if (g_hTrieSounds[client][0] != INVALID_HANDLE)
+			ClearTrie(g_hTrieSounds[client][0]);
+		if (g_hTrieSounds[client][1] != INVALID_HANDLE)
+			ClearTrie(g_hTrieSounds[client][1]);
 		ClearTrie(g_hTrieSequence[client]);
 		
 		for (new i = 0; i < 14; i++)
@@ -2163,8 +2171,10 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		return result;
 	}
 	
-	ClearTrie(g_hTrieSounds[client][0]);
-	ClearTrie(g_hTrieSounds[client][1]);
+	if (g_hTrieSounds[client][0] != INVALID_HANDLE)
+		ClearTrie(g_hTrieSounds[client][0]);
+	if (g_hTrieSounds[client][1] != INVALID_HANDLE)
+		ClearTrie(g_hTrieSounds[client][1]);
 	ClearTrie(g_hTrieSequence[client]);
 	
 	for (new i = 0; i < 14; i++)
