@@ -1835,7 +1835,9 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					
 					decl Float:vTemp[3];
 					KvGetVector(hKv, "muzzle_move", vTemp);
-					g_fMuzzlePos[client] = vTemp;
+					g_iPlayerData[client][2] = _:vTemp[0];
+					g_iPlayerData[client][3] = _:vTemp[1];
+					g_iPlayerData[client][4] = _:vTemp[2];
 					
 					new bool:jumped = false;
 					if (!sValue[0] || !(jumped = KvJumpToKey(hKv, sValue)) || ((bits = KvGetNum(hKv, "flag_bits")) > 0 && !(iClFlags & bits)))
