@@ -183,7 +183,7 @@ public OnPluginStart()
 	bCvar_MenuCloseNotice = GetConVarBool(hCvar_MenuCloseNotice);
 	HookConVarChange(hCvar_MenuCloseNotice, OnConVarChange);
 	
-	hCvar_OldStyleModelChange = CreateConVar("sm_custom_weapons_css_old_style_model_change", "0", "CS:S OB Use old style model change method for flip view model support. Not recommended! May reduce server performance", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	hCvar_OldStyleModelChange = CreateConVar("sm_custom_weapons_css_old_style_model_change", "1", "CS:S OB Use old style model change method for flip view model support. Not recommended! May reduce server performance", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	bCvar_OldStyleModelChange = GetConVarBool(hCvar_OldStyleModelChange);
 	HookConVarChange(hCvar_OldStyleModelChange, OnConVarChange);
 	
