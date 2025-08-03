@@ -2020,7 +2020,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						new weapon = GetPlayerWeaponSlot(client, 2);
 						if (weapon != -1)
 						{
-							CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+							CSViewModel_SetWeapon(ClientVM[client], weapon);
 						}
 					}
 					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
