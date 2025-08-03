@@ -1636,36 +1636,7 @@ public OnWeaponEquipPost(client, weapon)
 
 bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 {
-	// Check if current weapon has flip_view_model to force old style logic
-	new bool:has_flip_model = false;
-	if (CanSetCustomModel(client) && g_bEnabled[client] && bCvar_Enable)
-	{
-		decl String:ClassName[32];
-		GetEdictClassname(WeaponIndex, ClassName, sizeof(ClassName));
-		StringToLower(ClassName, ClassName, sizeof(ClassName));
-		new start_index = 0;
-		if (StrContains(ClassName, "weapon_", false) == 0)
-		{
-			start_index = 7;
-		}
-		if (KvJumpToKey(hKv, ClassName[start_index]))
-		{
-			decl Handle:hCookie, String:sValue[64];
-			GetCookieValue(client, ClassName[start_index], hCookie, sValue, sizeof(sValue));
-			if (sValue[0] && sValue[0] != '0' && KvJumpToKey(hKv, sValue))
-			{
-				has_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
-				KvGoBack(hKv);
-			}
-			if (!has_flip_model)
-			{
-				has_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
-			}
-			KvRewind(hKv);
-		}
-	}
-	
-	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange) || has_flip_model)
+	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
 	{
 		ClearTrie(g_hTrieSequence[client]);
 		
@@ -2050,23 +2021,47 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					}
 					new bool:b_flip_model = bool:KvGetNum(hKv, "flip_view_model", false);
 					
-					if (!IsCustom[client])
+					if (b_flip_model && Engine_Version != GAME_CSGO && ClientVM2[client] != 0)
 					{
-						iPrevIndex[client] = CSViewModel_GetModelIndex(ClientVM[client]);
-					}
-					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
-					CSViewModel_SetModelIndex(ClientVM[client], index);
-					if (b_flip_model)
-					{
+						// Use two view models like decompiled.sp for FLIP MODEL
+						CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
+						CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
+						CSViewModel_SetModelIndex(ClientVM2[client], index);
+						
 						new weapon = GetPlayerWeaponSlot(client, 2);
 						if (weapon != -1)
 						{
-							CSViewModel_SetWeapon(ClientVM[client], weapon);
+							CSViewModel_SetWeapon(ClientVM2[client], weapon);
 						}
+						else
+						{
+							CSViewModel_SetWeapon(ClientVM2[client], WeaponIndex);
+						}
+						
+						CSViewModel_SetSequence(ClientVM2[client], Sequence);
+						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 					}
 					else
 					{
-						CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+						// Original single view model logic
+						if (!IsCustom[client])
+						{
+							iPrevIndex[client] = CSViewModel_GetModelIndex(ClientVM[client]);
+						}
+						SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
+						CSViewModel_SetModelIndex(ClientVM[client], index);
+						if (b_flip_model)
+						{
+							new weapon = GetPlayerWeaponSlot(client, 2);
+							if (weapon != -1)
+							{
+								CSViewModel_SetWeapon(ClientVM[client], weapon);
+							}
+						}
+						else
+						{
+							CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+						}
 					}
 					IsCustom[client] = true;
 					
@@ -2079,6 +2074,13 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	}
 	if (!result && IsCustom[client])
 	{
+		// Hide ClientVM2 if it was used for FLIP MODEL
+		if (Engine_Version != GAME_CSGO && ClientVM2[client] != 0)
+		{
+			CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
+			CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
+		}
+		
 		if (!really_change)
 		{
 			CSViewModel_SetModelIndex(ClientVM[client], iPrevIndex[client]);
