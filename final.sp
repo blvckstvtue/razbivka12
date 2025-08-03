@@ -2026,24 +2026,25 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 										SetClientCookie(client, hCookie, sValue);
 									}
 									
-									break;
-								}
+																	break;
 							}
-							while (KvGotoNextKey(hKv));
 						}
+						while (KvGotoNextKey(hKv));
+						KvGoBack(hKv);
 					}
-					else
-					{
-						index = KvGetNum(hKv, "view_model_index");
-						// Use selected skin if available, otherwise use default
-						skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
-						world_model = KvGetNum(hKv, "world_model_index");
-						
-						g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
-						g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
-						
-						KvGetVector(hKv, "muzzle_move", vTemp);
-						g_fMuzzlePos[client] = vTemp;
+				}
+				else
+				{
+					index = KvGetNum(hKv, "view_model_index");
+					// Use selected skin if available, otherwise use default
+					skin_index = has_skin ? selected_skin : KvGetNum(hKv, "skin_index", 0);
+					world_model = KvGetNum(hKv, "world_model_index");
+					
+					g_bMuzzleFlash[client] = bool:KvGetNum(hKv, "muzzle_flash", false);
+					g_fMuzzleScale[client] = KvGetFloat(hKv, "muzzle_scale", 2.0);
+					
+					KvGetVector(hKv, "muzzle_move", vTemp);
+					g_fMuzzlePos[client] = vTemp;
 					}
 					
 					if (index != 0)
@@ -2297,30 +2298,24 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 								KvGetVector(hKv, "muzzle_move", vTemp);
 								g_fMuzzlePos[client] = vTemp;
 								
-								g_iPlayerData[client][0] = g_bMuzzleFlash[client];
-								g_iPlayerData[client][1] = _:g_fMuzzleScale[client];
-								g_iPlayerData[client][2] = _:g_fMuzzlePos[client][0];
-								g_iPlayerData[client][3] = _:g_fMuzzlePos[client][1];
-								g_iPlayerData[client][4] = _:g_fMuzzlePos[client][2];
-								
-								g_iPlayerData[client][0] = g_bMuzzleFlash[client];
-								g_iPlayerData[client][1] = _:g_fMuzzleScale[client];
-								g_iPlayerData[client][2] = _:g_fMuzzlePos[client][0];
-								g_iPlayerData[client][3] = _:g_fMuzzlePos[client][1];
-								g_iPlayerData[client][4] = _:g_fMuzzlePos[client][2];
-								
-								KvGetSectionName(hKv, sValue, sizeof(sValue));
-								
-								if (hCookie != INVALID_HANDLE)
-								{
-									SetClientCookie(client, hCookie, sValue);
-								}
-								
-								break;
+															g_iPlayerData[client][0] = g_bMuzzleFlash[client];
+							g_iPlayerData[client][1] = _:g_fMuzzleScale[client];
+							g_iPlayerData[client][2] = _:g_fMuzzlePos[client][0];
+							g_iPlayerData[client][3] = _:g_fMuzzlePos[client][1];
+							g_iPlayerData[client][4] = _:g_fMuzzlePos[client][2];
+							
+							KvGetSectionName(hKv, sValue, sizeof(sValue));
+							
+							if (hCookie != INVALID_HANDLE)
+							{
+								SetClientCookie(client, hCookie, sValue);
 							}
+							
+							break;
 						}
-						while (KvGotoNextKey(hKv));
 					}
+					while (KvGotoNextKey(hKv));
+					KvGoBack(hKv);
 				}
 				else
 				{
