@@ -262,6 +262,7 @@ public OnPluginStart()
 				
 				ClientVM[client] = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
 				
+				// За всички версии освен CSGO намираме втория view model
 				if (Engine_Version != GAME_CSGO)
 				{
 					new PVM = MaxClients+1;
@@ -299,7 +300,7 @@ public OnPluginEnd()
 		}
 		if (IsCustom[client] && IsClientInGame(client))
 		{
-			if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+			if (Engine_Version != GAME_CSGO)
 			{
 				CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
 				CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
@@ -308,7 +309,7 @@ public OnPluginEnd()
 				if (weapon != -1)
 				{
 					new seq = CSViewModel_GetSequence(ClientVM[client]);
-					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM2[client], OldSequence[client], seq);
+					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], ClientVM2[client], OldSequence[client], seq);
 				}
 			}
 			else
@@ -319,7 +320,7 @@ public OnPluginEnd()
 				if (weapon != -1)
 				{
 					new seq = CSViewModel_GetSequence(ClientVM[client]);
-					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], OldSequence[client], seq);
+					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], ClientVM[client], OldSequence[client], seq);
 				}
 			}
 		}
@@ -426,39 +427,7 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 	else if (convar == hCvar_OldStyleModelChange)
 	{
 		bCvar_OldStyleModelChange = bool:StringToInt(newValue);
-		if (Engine_Version == GAME_CSS)
-		{
-			for (new client = 1; client <= MaxClients; client++)
-			{
-				if (IsClientInGame(client))
-				{
-					if (bCvar_OldStyleModelChange)
-					{
-						if (IsCustom[client])
-						{
-							CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
-							CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-							
-							OnWeaponChanged(client, CSPlayer_GetActiveWeapon(client), CSViewModel_GetSequence(ClientVM[client]));
-						}
-						SDKUnhook(client, SDKHook_PostThinkPost, OnPostThinkPost);
-						SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost_Old);
-					}
-					else
-					{
-						if (IsCustom[client])
-						{
-							CSViewModel_AddEffects(ClientVM2[client], EF_NODRAW);
-							CSViewModel_RemoveEffects(ClientVM[client], EF_NODRAW);
-							
-							OnWeaponChanged(client, CSPlayer_GetActiveWeapon(client), CSViewModel_GetSequence(ClientVM[client]));
-						}
-						SDKUnhook(client, SDKHook_PostThinkPost, OnPostThinkPost_Old);
-						SDKHook(client, SDKHook_PostThinkPost, OnPostThinkPost);
-					}
-				}
-			}
-		}
+		// Премахваме динамичната смяна - винаги използваме два view model-а за CSS
 	}
 	else if (convar == hCvar_WeaponsPath)
 	{
@@ -716,7 +685,8 @@ public OnClientPutInServer(client)
 		g_bMenuSpawn[client] = false;
 	}
 	
-	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+	// За всички версии освен CSGO използваме старата логика с два view model-а
+	if (Engine_Version != GAME_CSGO)
 	{
 		if (Engine_Version == GAME_CSS_34)
 		{
@@ -851,6 +821,7 @@ public OnEntitySpawned(entity)
 		}
 		else
 		{
+			// За CSS винаги използваме два view model-а
 			switch (CSViewModel_GetViewModelIndex(entity))
 			{
 				case 0 :
@@ -1306,7 +1277,7 @@ public OnPostThinkPost_Old(client)
 			
 			NextSeq[client] = 0.0;
 			
-			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence);
+			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence);
 			
 			hPlugin[client] = INVALID_HANDLE;
 			weapon_switch[client] = INVALID_FUNCTION;
@@ -1340,7 +1311,7 @@ public OnPostThinkPost_Old(client)
 				CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 			}
 			
-			switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence))
+			switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence))
 			{
 				case Plugin_Continue :
 				{
@@ -1429,7 +1400,7 @@ public OnPostThinkPost(client)
 			
 			NextSeq[client] = 0.0;
 			
-			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence);
+			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence);
 			
 			hPlugin[client] = INVALID_HANDLE;
 			weapon_switch[client] = INVALID_FUNCTION;
@@ -1460,7 +1431,7 @@ public OnPostThinkPost(client)
 	else
 	if (IsCustom[client])
 	{
-		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence))
+		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence))
 		{
 			case Plugin_Continue :
 			{
@@ -1626,7 +1597,8 @@ public OnWeaponEquipPost(client, weapon)
 
 bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 {
-	if (Engine_Version == GAME_CSS_34 || (Engine_Version == GAME_CSS && bCvar_OldStyleModelChange))
+	// Винаги използваме два view model-а за всички версии освен CSGO
+	if (Engine_Version != GAME_CSGO)
 	{
 		ClearTrie(g_hTrieSequence[client]);
 		
@@ -1646,7 +1618,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		
 		new world_model;
 		
-		Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence);
+		Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence);
 		
 		hPlugin[client] = INVALID_HANDLE;
 		weapon_switch[client] = INVALID_FUNCTION;
@@ -1663,7 +1635,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 			weapon_sequence[client] = aInfo[2];
 			
 			new bool:custom_change = false;
-			if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
+			if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
 			{
 				KvRewind(hRegKv);
 				
@@ -1871,7 +1843,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	
 	new world_model, dropped_model;
 	
-	Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence);
+	Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence);
 	
 	hPlugin[client] = INVALID_HANDLE;
 	weapon_switch[client] = INVALID_FUNCTION;
@@ -1888,7 +1860,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		weapon_sequence[client] = aInfo[2];
 		
 		new bool:custom_change = false;
-		if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
+		if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
 		{
 			KvRewind(hRegKv);
 			
@@ -2020,8 +1992,12 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						new weapon = GetPlayerWeaponSlot(client, 2);
 						if (weapon != -1)
 						{
-							CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
+							CSViewModel_SetWeapon(ClientVM[client], weapon);
 						}
+					}
+					else
+					{
+						CSViewModel_SetWeapon(ClientVM[client], WeaponIndex);
 					}
 					SetEntProp(WeaponIndex, Prop_Send, "m_nModelIndex", 0);
 					CSViewModel_SetModelIndex(ClientVM[client], index);
@@ -2537,7 +2513,7 @@ bool:CheckWeapon(client, weapon)
 	return false;
 }
 
-Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, client, weapon, predicted_viewmodel, old_sequence, &new_sequence, bool:switch_from = true, &bool:custom_change = false)
+Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, client, weapon, predicted_viewmodel, custom_viewmodel, old_sequence, &new_sequence, bool:switch_from = true, &bool:custom_change = false)
 {
 	new Action:result = Plugin_Continue;
 	
@@ -2547,6 +2523,7 @@ Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, clien
 		Call_PushCell(client);
 		Call_PushCell(weapon);
 		Call_PushCell(predicted_viewmodel);
+		Call_PushCell(custom_viewmodel);
 		Call_PushCell(old_sequence);
 		Call_PushCellRef(new_sequence);
 		Call_PushCell(switch_from);
@@ -2557,7 +2534,7 @@ Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, clien
 	return result;
 }
 
-Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client, weapon, predicted_viewmodel, old_sequence, &new_sequence)
+Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client, weapon, predicted_viewmodel, custom_viewmodel, old_sequence, &new_sequence)
 {
 	new Action:result = Plugin_Continue;
 	
@@ -2567,6 +2544,7 @@ Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client,
 		Call_PushCell(client);
 		Call_PushCell(weapon);
 		Call_PushCell(predicted_viewmodel);
+		Call_PushCell(custom_viewmodel);
 		Call_PushCell(old_sequence);
 		Call_PushCellRef(new_sequence);
 		Call_Finish(result);
