@@ -616,6 +616,11 @@ CacheModels(Handle:kv)
 						{
 							KvSetNum(hKv, "skin", KvGetNum(kv, "skin", 0));
 						}
+						// Store max_skin if specified
+						if (KvGetNum(kv, "max_skin", -1) != -1)
+						{
+							KvSetNum(hKv, "max_skin", KvGetNum(kv, "max_skin", 0));
+						}
 						KvSetNum(hKv, "flag_bits", ReadFlagString(buffer));
 						
 						KvGetString(kv, "view_model", buffer, sizeof(buffer));
