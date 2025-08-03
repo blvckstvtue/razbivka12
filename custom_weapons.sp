@@ -308,7 +308,7 @@ public OnPluginEnd()
 				if (weapon != -1)
 				{
 					new seq = CSViewModel_GetSequence(ClientVM[client]);
-					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM2[client], OldSequence[client], seq);
+					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], ClientVM2[client], OldSequence[client], seq);
 				}
 			}
 			else
@@ -319,7 +319,7 @@ public OnPluginEnd()
 				if (weapon != -1)
 				{
 					new seq = CSViewModel_GetSequence(ClientVM[client]);
-					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], OldSequence[client], seq);
+					Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, weapon, ClientVM[client], ClientVM[client], OldSequence[client], seq);
 				}
 			}
 		}
@@ -1306,7 +1306,7 @@ public OnPostThinkPost_Old(client)
 			
 			NextSeq[client] = 0.0;
 			
-			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence);
+			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence);
 			
 			hPlugin[client] = INVALID_HANDLE;
 			weapon_switch[client] = INVALID_FUNCTION;
@@ -1340,7 +1340,7 @@ public OnPostThinkPost_Old(client)
 				CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 			}
 			
-			switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence))
+			switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence))
 			{
 				case Plugin_Continue :
 				{
@@ -1429,7 +1429,7 @@ public OnPostThinkPost(client)
 			
 			NextSeq[client] = 0.0;
 			
-			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence);
+			Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence);
 			
 			hPlugin[client] = INVALID_HANDLE;
 			weapon_switch[client] = INVALID_FUNCTION;
@@ -1460,7 +1460,7 @@ public OnPostThinkPost(client)
 	else
 	if (IsCustom[client])
 	{
-		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence))
+		switch (Function_OnWeaponThink(hPlugin[client], weapon_sequence[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence))
 		{
 			case Plugin_Continue :
 			{
@@ -1646,7 +1646,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		
 		new world_model;
 		
-		Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence);
+		Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence);
 		
 		hPlugin[client] = INVALID_HANDLE;
 		weapon_switch[client] = INVALID_FUNCTION;
@@ -1663,7 +1663,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 			weapon_sequence[client] = aInfo[2];
 			
 			new bool:custom_change = false;
-			if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM2[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
+			if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM2[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
 			{
 				KvRewind(hRegKv);
 				
@@ -1691,11 +1691,8 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 					if (custom_change)
 					{
 						CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-						
 						CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
-						
 						CSViewModel_SetWeapon(ClientVM2[client], WeaponIndex);
-						
 						CSViewModel_SetSequence(ClientVM2[client], Sequence);
 						CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 					}
@@ -1800,7 +1797,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 						if (IsValidEdict(ClientVM2[client]))
 						{
 							CSViewModel_AddEffects(ClientVM[client], EF_NODRAW);
-							
 							CSViewModel_RemoveEffects(ClientVM2[client], EF_NODRAW);
 							CSViewModel_SetModelIndex(ClientVM2[client], index);
 							
@@ -1821,7 +1817,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 							CSViewModel_SetPlaybackRate(ClientVM2[client], CSViewModel_GetPlaybackRate(ClientVM[client]));
 							
 							IsCustom[client] = true;
-							
 							result = true;
 						}
 					}
@@ -1839,7 +1834,6 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 				}
 				
 				IsCustom[client] = false;
-				
 				NextSeq[client] = 0.0;
 			}
 			
@@ -1853,6 +1847,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		return result;
 	}
 	
+	// For CSGO and CSS (non-old style), use the existing modern logic
 	ClearTrie(g_hTrieSequence[client]);
 	
 	iCycle[client] = 0;
@@ -1871,7 +1866,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 	
 	new world_model, dropped_model;
 	
-	Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence);
+	Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence);
 	
 	hPlugin[client] = INVALID_HANDLE;
 	weapon_switch[client] = INVALID_FUNCTION;
@@ -1888,7 +1883,7 @@ bool:OnWeaponChanged(client, WeaponIndex, Sequence, bool:really_change = false)
 		weapon_sequence[client] = aInfo[2];
 		
 		new bool:custom_change = false;
-		if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
+		if (Function_OnWeaponSwitch(hPlugin[client], weapon_switch[client], client, WeaponIndex, ClientVM[client], ClientVM[client], OldSequence[client], Sequence, false, custom_change) != Plugin_Continue)
 		{
 			KvRewind(hRegKv);
 			
@@ -2537,7 +2532,7 @@ bool:CheckWeapon(client, weapon)
 	return false;
 }
 
-Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, client, weapon, predicted_viewmodel, old_sequence, &new_sequence, bool:switch_from = true, &bool:custom_change = false)
+Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, client, weapon, predicted_viewmodel, custom_viewmodel, old_sequence, &new_sequence, bool:switch_from = true, &bool:custom_change = false)
 {
 	new Action:result = Plugin_Continue;
 	
@@ -2547,6 +2542,7 @@ Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, clien
 		Call_PushCell(client);
 		Call_PushCell(weapon);
 		Call_PushCell(predicted_viewmodel);
+		Call_PushCell(custom_viewmodel);
 		Call_PushCell(old_sequence);
 		Call_PushCellRef(new_sequence);
 		Call_PushCell(switch_from);
@@ -2557,7 +2553,7 @@ Action:Function_OnWeaponSwitch(Handle:plugin, Function:func_weapon_switch, clien
 	return result;
 }
 
-Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client, weapon, predicted_viewmodel, old_sequence, &new_sequence)
+Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client, weapon, predicted_viewmodel, custom_viewmodel, old_sequence, &new_sequence)
 {
 	new Action:result = Plugin_Continue;
 	
@@ -2567,6 +2563,7 @@ Action:Function_OnWeaponThink(Handle:plugin, Function:func_weapon_think, client,
 		Call_PushCell(client);
 		Call_PushCell(weapon);
 		Call_PushCell(predicted_viewmodel);
+		Call_PushCell(custom_viewmodel);
 		Call_PushCell(old_sequence);
 		Call_PushCellRef(new_sequence);
 		Call_Finish(result);
