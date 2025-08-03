@@ -2807,9 +2807,16 @@ bool:Menu_ShowWeapon(client, const String:weapon[], const String:title[])
 				new selected_skin = 0;
 				new bool:has_skin = ParseCookieValue(sUserValue, model_name, sizeof(model_name), selected_skin);
 				
-				if (has_skin && StrEqual(section, model_name))
+				if ((has_skin && StrEqual(section, model_name)) || (!has_skin && StrEqual(section, sUserValue)))
 				{
-					Format(buffer, sizeof(buffer), "%s (Skin %d) [+]", buffer, selected_skin);
+					if (has_skin)
+					{
+						Format(buffer, sizeof(buffer), "%s (Skin %d) [+]", buffer, selected_skin);
+					}
+					else
+					{
+						StrCat(buffer, sizeof(buffer), " [+]");
+					}
 					AddMenuItem(menu, section, buffer, has_access ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
 					continue;
 				}
@@ -2897,23 +2904,23 @@ public WeaponMenu_Handler(Handle:menu, MenuAction:action, param1, param2)
 			
 			// Check if this is a multi-skin model
 			decl String:model_name[64];
-			new selected_skin = 0;
-			new bool:has_skin = ParseCookieValue(sInfo, model_name, sizeof(model_name), selected_skin);
+			strcopy(model_name, sizeof(model_name), sInfo);
 			
 			if (KvJumpToKey(hKv, szWeapon[param1]) && KvJumpToKey(hKv, model_name))
 			{
 				new max_skin = KvGetNum(hKv, "max_skin", 0);
-				KvRewind(hKv);
 				
 				if (max_skin > 0)
 				{
 					// Show skin selection menu
+					KvRewind(hKv);
 					if (!Menu_ShowSkinSelection(param1, model_name, max_skin))
 					{
 						Menu_ShowWeapon(param1, szWeapon[param1], sTitle[param1]);
 					}
 					return;
 				}
+				KvRewind(hKv);
 			}
 			
 			// Single skin model or default selection
